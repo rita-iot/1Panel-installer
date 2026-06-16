@@ -1,21 +1,20 @@
 #!/bin/bash
-#
 
 set -ex
 
 BASE_DIR=$(cd "$(dirname "$0")" || exit 1; pwd)
 
-while [[ $# > 0 ]]; do
-    lowerI="$(echo $1 | awk '{print tolower($0)}')"
+while [[ $# -gt 0 ]]; do
+    lowerI="$(echo "$1" | awk '{print tolower($0)}')"
     case $lowerI in
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo
             echo "Global Options:"
-            echo -e "  -h, --help  \t Show this help message and exit"
-            echo -e "  --app_version  \t 1Panel version"
-            echo -e "  --docker_version  \t Docker version"
-            echo -e "  --compose_version  \t Docker-compose version"
+            echo -e "  -h, --help      \t Show this help message and exit"
+            echo -e "  --app_version   \t 1Panel version"
+            echo -e "  --docker_version\t Docker version"
+            echo -e "  --compose_version\t Docker-compose version"
             exit 0
             ;;
         --app_version)
@@ -39,9 +38,10 @@ while [[ $# > 0 ]]; do
     shift
 done
 
-APP_VERSION=${app_version:-v1.7.4}
-DOCKER_VERSION=${docker_version:-20.10.7}
-COMPOSE_VERSION=${compose_version:-v2.23.0}
+# 默认保底版本
+APP_VERSION=${app_version:-v1.10.18-lts}
+DOCKER_VERSION=${docker_version:-29.4.1}
+COMPOSE_VERSION=${compose_version:-v5.1.4}
 
 if [ -d "build" ]; then
     rm -rf build/*
@@ -51,52 +51,37 @@ for ARCHITECTURE in aarch64 armel armhf loongarch64 ppc64le riscv64 s390x x86_64
     cd "${BASE_DIR}" || exit 1
 
     case "${ARCHITECTURE}" in
-        "aarch64")
-            ARCH="arm64"
-            ;;
-        "armel")
-            ARCH="armv6"
-            ;;
-        "armhf")
-            ARCH="armv7"
-            ;;
-        "loongarch64")
-            ARCH="loong64"
-            ;;
-        "ppc64le")
-            ARCH="ppc64le"
-            ;;
-        "riscv64")
-            ARCH="riscv64"
-            ;;
-        "s390x")
-            ARCH="s390x"
-            ;;
-        "x86_64")
-            ARCH="amd64"
-            ;;
+        "aarch64")      ARCH="arm64" ;;
+        "armel")        ARCH="armv6" ;;
+        "armhf")        ARCH="armv7" ;;
+        "loongarch64")  ARCH="loong64" ;;
+        "ppc64le")      ARCH="ppc64le" ;;
+        "riscv64")      ARCH="riscv64" ;;
+        "s390x")        ARCH="s390x" ;;
+        "x86_64")       ARCH="amd64" ;;
     esac
 
     APP_BIN_URL="https://github.com/wojiushixiaobai/1Panel/releases/download/${APP_VERSION}/1panel-${APP_VERSION}-linux-${ARCH}.tar.gz"
     DOCKER_BIN_URL="https://download.docker.com/linux/static/stable/${ARCHITECTURE}/docker-${DOCKER_VERSION}.tgz"
-    COMPOSE_BIN_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCHITECTURE}"
+    
+    # ====================================================================
+    # 🔥 核心修改：适配 Docker Compose v5+ 的新命名规范 (不再包含 -linux-)
+    # ====================================================================
+    COMPOSE_BIN_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-${ARCH}"
 
     OFFLINE_BUILD=""
 
     case "${ARCHITECTURE}" in
         "armel"|"armhf")
-            COMPOSE_BIN_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCH}"
+            COMPOSE_BIN_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-${ARCH}"
             ;;
         "loongarch64")
             DOCKER_BIN_URL="https://github.com/loong64/docker-ce-packaging/releases/download/v${DOCKER_VERSION}/docker-${DOCKER_VERSION}.tgz"
             COMPOSE_BIN_URL="https://github.com/loong64/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCHITECTURE}"
             ;;
-        "riscv64")
+        "riscv64"|"ppc64le"|"s390x")
             DOCKER_BIN_URL="https://github.com/wojiushixiaobai/docker-ce-binaries-${ARCHITECTURE}/releases/download/v${DOCKER_VERSION}/docker-${DOCKER_VERSION}.tgz"
-            ;;
-        "ppc64le"|"s390x")
-            DOCKER_BIN_URL="https://github.com/wojiushixiaobai/docker-ce-binaries-${ARCHITECTURE}/releases/download/v${DOCKER_VERSION}/docker-${DOCKER_VERSION}.tgz"
-            # OFFLINE_BUILD="false"
+            # Compose v5 官方原生支持 ppc64le 和 s390x，因此它们直接走上面的官方通用逻辑即可
             ;;
     esac
 
@@ -133,7 +118,7 @@ for ARCHITECTURE in aarch64 armel armhf loongarch64 ppc64le riscv64 s390x x86_64
     cp -f install.sh "${BUILD_DIR}"
     cp -f install.sh "${BUILD_OFFLINE_DIR}"
     sed -i 's@/usr/bin/1panel@/usr/local/bin/1panel@g' "${BUILD_DIR}/1panel.service"
-    sed -i 's@/usr/bin/1panel@/usr/local/bin/1panel@g' "${BUILD_OFFLINE_DIR}/1panel.service"
+    sed -i 's@/usr/bin/1panel@/usr/local/bin/1panel@g' "${OFFLINE_OFFLINE_DIR:-$BUILD_OFFLINE_DIR}/1panel.service"
     chmod +x "${BUILD_OFFLINE_DIR}/docker-compose"
     chmod +x "${BUILD_DIR}/install.sh" "${BUILD_OFFLINE_DIR}/install.sh"
     chown -R root:root "${BUILD_DIR}" "${BUILD_OFFLINE_DIR}"
