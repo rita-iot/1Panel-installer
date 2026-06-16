@@ -9,9 +9,11 @@ on:
 name: Checkout and Create Release Version
 
 env:
-  TARGET_1PANEL_VERSION: "v1.10.18-lts"   # 1Panel 源码版本
+  # ==================== 在这里更新为了你指定的最新版本 ====================
+  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 源码版本
   TARGET_DOCKER_VERSION: "v29.4.1"        # Docker 版本
   TARGET_COMPOSE_VERSION: "v5.1.4"        # Docker Compose 版本
+  # ====================================================================
 
 jobs:
   build:
@@ -40,7 +42,8 @@ jobs:
       - name: Clone and Compile Official 1Panel Source
         run: |
           echo "=== 开始拉取 1Panel 官方指定版本源码 ==="
-          git clone --branch ${{ steps.get-version.outputs.version }} https://github.com/v2est/1Panel.git official-src
+          # 动态从官方源拉取你在顶部指定的 TARGET_1PANEL_VERSION
+          git clone --branch ${{ steps.get-version.outputs.version }} https://github.com/1Panel-dev/1Panel.git official-src
           cd official-src
           
           echo "=== 开始交叉编译 AMD64 (x86_64) 二进制 ==="
@@ -85,18 +88,3 @@ jobs:
         run: |
           gh release create ${{ steps.get-version.outputs.version }} --notes "Release ${{ steps.get-version.outputs.version }}" -R ${{ github.repository }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Make Offline
-        if: steps.check-build.outputs.build == 1
-        run: |
-          chmod +x prepare.sh
-          sudo ./prepare.sh --app_version ${{ steps.get-version.outputs.app_version }} --docker_version ${{ steps.get-version.outputs.docker_version }} --compose_version ${{ steps.get-version.outputs.compose_version }}
-
-      - name: Upgrade Release
-        if: steps.check-build.outputs.build == 1
-        run: |
-          gh release upload ${{ steps.get-version.outputs.version }} build/${{ steps.get-version.outputs.version }}/*.tar.gz -R ${{ github.repository }} --clobber
-          gh release upload ${{ steps.get-version.outputs.version }} build/${{ steps.get-version.outputs.version }}/checksums.txt -R ${{ github.repository }} --clobber
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
