@@ -10,19 +10,19 @@ if [ ! "$(echo $PATH | grep /usr/local/bin)" ]; then
     export PATH=/usr/local/bin:$PATH
 fi
 
-while [[ $# > 0 ]]; do
-    lowerI="$(echo $1 | awk '{print tolower($0)}')"
+while [[ $# -gt 0 ]]; do
+    lowerI="$(echo "$1" | awk '{print tolower($0)}')"
     case $lowerI in
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo
             echo "Global Options:"
-            echo -e "  -h, --help  \t Show this help message and exit"
+            echo -e "  -h, --help    \t Show this help message and exit"
             echo -e "  -v, --version  Show the version information"
-            echo -e "  --port  \t Configure web access port in the Installation Phase."
-            echo -e "  --user  \t Configure 1Panel user in the Installation Phase."
-            echo -e "  --password  \t Configure 1Panel password in the Installation Phase."
-            echo -e "  --entrance  \t Configure 1Panel web security access in the Installation Phase."
+            echo -e "  --port        \t Configure web access port in the Installation Phase."
+            echo -e "  --user        \t Configure 1Panel user in the Installation Phase."
+            echo -e "  --password    \t Configure 1Panel password in the Installation Phase."
+            echo -e "  --entrance    \t Configure 1Panel web security access in the Installation Phase."
             echo -e "  --install-dir  Configure 1Panel install directory in the Installation Phase."
             echo
             echo "For more help options on how to use 1Panel, head to https://1panel.cn/docs/"
@@ -82,7 +82,7 @@ fi
 function echo_logo() {
     cat << EOF
 
-    ██╗    ██████╗  █████╗ ███╗   ██╗███████╗██╗
+    ██╗    ██████╗  █████╗ ███╗    ██╗███████╗██╗
    ███║    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║
    ╚██║    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
     ██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
@@ -157,8 +157,12 @@ function install_docker() {
     systemctl start docker
 }
 
+# ====================================================================
+# 🔥 修改点：适配 Docker Compose v5+ 插件模式与传统模式双兼容
+# ====================================================================
 function check_compose() {
-    if ! command -v docker-compose >/dev/null 2>&1; then
+    # 检查传统独立命令模式，或者新型 Docker 插件模式是否均可用
+    if ! command -v docker-compose >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
         install_compose
     fi
 }
@@ -168,10 +172,18 @@ function install_compose() {
         log_error "docker-compose not found"
         exit 1
     fi
-    chown root:root docker-compose
-    chmod 755 docker-compose
-    cp -f docker-compose /usr/local/bin
+    
+    # 1. 优先安装为 Docker 官方推荐的 CLI 插件目录（适配 v5+ 标准形态）
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    cp -f docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+    chown root:root /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod 755 /usr/local/lib/docker/cli-plugins/docker-compose
+
+    # 2. 建立软链接到 /usr/local/bin，兼容旧版 1Panel 及用户习惯的 `docker-compose` 命令行调用
+    rm -f /usr/local/bin/docker-compose
+    ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
 }
+# ====================================================================
 
 function check_1panel() {
     if ! command -v 1panel >/dev/null 2>&1; then
@@ -260,7 +272,7 @@ function random_str() {
   fi
   uuid=None
   if command -v dmidecode &>/dev/null; then
-    if [[ ${len} > 16 ]]; then
+    if [[ ${len} -gt 16 ]]; then
       uuid=$(dmidecode -t 1 | grep UUID | awk '{print $2}' | sha256sum | awk '{print $1}' | head -c ${len})
     fi
   fi
