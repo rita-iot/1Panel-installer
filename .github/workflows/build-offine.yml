@@ -88,3 +88,18 @@ jobs:
         run: |
           gh release create ${{ steps.get-version.outputs.version }} --notes "Release ${{ steps.get-version.outputs.version }}" -R ${{ github.repository }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Make Offline
+        if: steps.check-build.outputs.build == 1
+        run: |
+          chmod +x prepare.sh
+          sudo ./prepare.sh --app_version ${{ steps.get-version.outputs.app_version }} --docker_version ${{ steps.get-version.outputs.docker_version }} --compose_version ${{ steps.get-version.outputs.compose_version }}
+
+      - name: Upgrade Release
+        if: steps.check-build.outputs.build == 1
+        run: |
+          gh release upload ${{ steps.get-version.outputs.version }} build/${{ steps.get-version.outputs.version }}/*.tar.gz -R ${{ github.repository }} --clobber
+          gh release upload ${{ steps.get-version.outputs.version }} build/${{ steps.get-version.outputs.version }}/checksums.txt -R ${{ github.repository }} --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
