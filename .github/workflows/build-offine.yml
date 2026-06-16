@@ -27,6 +27,12 @@ jobs:
         with:
           go-version: '1.22' # 1Panel 要求的标准编译 Go 环境
 
+      # ✨ 新增：显式初始化 Node.js 环境，确保前端编译工具链正常
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # 适配 Vue 编译的主流稳定 Node 版本
+
       - name: Check Version
         id: get-version
         run: |
@@ -39,7 +45,7 @@ jobs:
           echo "docker_version=${docker_version/v/}" >> $GITHUB_OUTPUT
           echo "compose_version=${compose_version}" >> $GITHUB_OUTPUT
 
-      # 🔥 根据你提供的根目录结构图重写编译逻辑
+      # 🔥 基于官方源码 .zip 包下载、前端 Vue 自动编译、后端静态资源嵌入与 Go 免 cd 交叉编译
       - name: Download and Compile Official 1Panel Zip Source
         run: |
           echo "=== 正在下载 1Panel 官方源码 Zip 包 ==="
@@ -50,12 +56,26 @@ jobs:
           
           # 🔍 动态捕捉包含 go.mod 的项目根目录路径
           ROOT_DIR=$(find . -maxdepth 2 -name "go.mod" -exec dirname {} \;)
-          echo "定位到 Go 根目录为: ${ROOT_DIR}"
+          echo "定位到项目 Go 根目录为: ${ROOT_DIR}"
+          
+          # ==================== ✨ 前端打包核心步骤 ====================
+          echo "=== 📦 开始编译前端静态资源 ==="
+          cd "${ROOT_DIR}/frontend"
+          
+          # 1. 使用国内镜像源安装前端依赖，防止 Actions 报错或超时
+          npm install --registry=https://registry.npmmirror.com
+          
+          # 2. 执行打包构建，生成嵌入二进制所需的静态 assets 文件
+          npm run build
+          
+          # 3. 返回 Actions 工作流主路径
+          cd -
+          # =============================================================
           
           echo "=== 正在下载 Go 依赖包 ==="
           go mod -C "${ROOT_DIR}" download
           
-          # 🔍 动态查找 cmd/ 目录下的核心 main.go 入口文件路径（转为相对 ROOT_DIR 的路径）
+          # 🔍 动态查找 cmd/ 目录下的核心 main.go 入口文件路径
           MAIN_GO_PATH=$(find "${ROOT_DIR}/cmd" -name "main.go" | head -n 1 | sed "s|${ROOT_DIR}/||")
           echo "抓取到主程序编译入口为: ${MAIN_GO_PATH}"
           
