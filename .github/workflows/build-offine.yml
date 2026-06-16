@@ -8,6 +8,13 @@ on:
 
 name: Checkout and Create Release Version
 
+# ==================== 在这里统一指定你想固定的版本 ====================
+env:
+  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 版本 (通常带 v)
+  TARGET_DOCKER_VERSION: "v27.0.1"        # Docker 版本 (通常带 v，脚本会自动处理掉 v)
+  TARGET_COMPOSE_VERSION: "v5.1.4"       # Docker Compose 版本 (通常带 v)
+# ====================================================================
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,18 +25,24 @@ jobs:
       - name: Check Version
         id: get-version
         run: |
-          version=$(curl -s 'https://api.github.com/repos/wojiushixiaobai/1Panel/releases/latest' | jq -r ".tag_name")
-          docker_version=$(curl -s 'https://api.github.com/repos/moby/moby/releases/latest' | jq -r ".tag_name")
-          compose_version=$(curl -s 'https://api.github.com/repos/docker/compose/releases/latest' | jq -r ".tag_name")
+          # 直接读取顶部配置的固定版本
+          version="${{ env.TARGET_1PANEL_VERSION }}"
+          docker_version="${{ env.TARGET_DOCKER_VERSION }}"
+          compose_version="${{ env.TARGET_COMPOSE_VERSION }}"
+          
           if [ -z "${version}" ] || [ "${version}" == "null" ]; then
             echo "Failed to get version"
             exit 1
           fi
+          
+          # 输出给后续步骤使用
           echo "version=${version}" >> $GITHUB_OUTPUT
           echo "app_version=${version}" >> $GITHUB_OUTPUT
+          # 这里保留了你原本代码中去掉 Docker 版本号里 "v" 的逻辑 (例如 v27.0.1 变成 27.0.1)
           echo "docker_version=${docker_version/v/}" >> $GITHUB_OUTPUT
           echo "compose_version=${compose_version}" >> $GITHUB_OUTPUT
-          echo "Current app_version: $version, docker_version: $docker_version, compose_version: $compose_version"
+          
+          echo "Target app_version: $version, docker_version: ${docker_version/v/}, compose_version: $compose_version"
 
       - name: Check Release
         id: check-release
