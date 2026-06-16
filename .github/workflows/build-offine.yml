@@ -39,7 +39,7 @@ jobs:
           echo "docker_version=${docker_version/v/}" >> $GITHUB_OUTPUT
           echo "compose_version=${compose_version}" >> $GITHUB_OUTPUT
 
-      # 🔥 基于官方源码 .zip 包下载、动态目录捕捉与免 cd 上下文交叉编译
+      # 🔥 基于官方源码 .zip 包下载、精准捕捉 core 子目录、免 cd 交叉编译
       - name: Download and Compile Official 1Panel Zip Source
         run: |
           echo "=== 正在下载 1Panel 官方源码 Zip 包 ==="
@@ -48,22 +48,23 @@ jobs:
           echo "=== 正在解压源码 ==="
           unzip -q source.zip
           
-          # 🔍 动态获取解压出来的实际目录名称（过滤掉 zip 文件本身，不惧大小写变动）
-          SRC_DIR=$(ls -d */ | grep -i 1panel | head -n 1)
-          echo "判定官方源码实际解压目录为: ${SRC_DIR}"
+          # 🔍 动态捕捉包含 go.mod 的核心业务 core 目录路径
+          CORE_DIR=$(find . -maxdepth 3 -type d -name "core" | head -n 1)
+          echo "定位到真正的 Go 业务根目录为: ${CORE_DIR}"
           
           echo "=== 正在下载 Go 依赖包 ==="
-          # 使用 -C 让 Go 自动前往该目录去读取 go.mod
-          go mod -C "${SRC_DIR}" download
+          # 使用 -C 让 Go 顺着 CORE_DIR 进去读取其中的 go.mod
+          go mod -C "${CORE_DIR}" download
           
           echo "=== 开始现场交叉编译 AMD64 (x86_64) 二进制 ==="
           mkdir -p compiled_bins/amd64
-          # 使用 -C 指定源码上下文，并把编译产物输出到外层的 compiled_bins
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -C "${SRC_DIR}" -ldflags "-s -w" -o ../../compiled_bins/amd64/1panel cmd/panel/main.go
+          # 上下文切入 core 目录，cmd/panel/main.go 相对路径完美吻合
+          # 产物输出到最外层的 compiled_bins
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -C "${CORE_DIR}" -ldflags "-s -w" -o ../../compiled_bins/amd64/1panel cmd/panel/main.go
           
           echo "=== 开始现场交叉编译 ARM64 (aarch64) 二进制 ==="
           mkdir -p compiled_bins/arm64
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -C "${SRC_DIR}" -ldflags "-s -w" -o ../../compiled_bins/arm64/1panel cmd/panel/main.go
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -C "${CORE_DIR}" -ldflags "-s -w" -o ../../compiled_bins/arm64/1panel cmd/panel/main.go
           
           echo "=== 核心二进制编译完成 ==="
           ls -lh compiled_bins/*
