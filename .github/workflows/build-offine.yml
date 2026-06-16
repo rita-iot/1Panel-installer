@@ -8,9 +8,9 @@ on:
 
 name: Checkout and Create Release Version
 
-# ==================== 在这里统一管理固定的各组件版本 ====================
 env:
-  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 官方源码版本
+  # ==================== 统一管理固定组件版本 ====================
+  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 你指定的 1Panel 源码版本
   TARGET_DOCKER_VERSION: "v29.4.1"        # Docker 静态包版本
   TARGET_COMPOSE_VERSION: "v5.1.4"        # Docker Compose 插件版本
 # ====================================================================
@@ -39,11 +39,19 @@ jobs:
           echo "docker_version=${docker_version/v/}" >> $GITHUB_OUTPUT
           echo "compose_version=${compose_version}" >> $GITHUB_OUTPUT
 
-      - name: Clone and Compile Official 1Panel Source
+      # 🔥 核心修改：完全改用官方源码 .zip 压缩包下载并现场编译
+      - name: Download and Compile Official 1Panel Zip Source
         run: |
-          echo "=== 开始拉取 1Panel 官方指定版本源码 ==="
-          git clone --branch ${{ steps.get-version.outputs.version }} https://github.com/1Panel-dev/1Panel.git official-src
-          cd official-src
+          echo "=== 正在下载 1Panel 官方源码 Zip 包 ==="
+          # 动态拼接你提供的链接：https://github.com/1Panel-dev/1Panel/archive/refs/tags/${{ steps.get-version.outputs.version }}.zip
+          wget -q "https://github.com/1Panel-dev/1Panel/archive/refs/tags/${{ steps.get-version.outputs.version }}.zip" -O source.zip
+          
+          echo "=== 正在解压源码 ==="
+          unzip -q source.zip
+          
+          # 官方压缩包解压出来目录名通常是 1Panel-1.10.29-lts (去掉了开头的 v)
+          # 我们用通配符直接强行转入该目录
+          cd 1Panel-*
           
           echo "=== 正在下载 Go 依赖包 ==="
           go mod download
