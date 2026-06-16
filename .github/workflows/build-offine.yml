@@ -8,12 +8,12 @@ on:
 
 name: Checkout and Create Release Version
 
+# ==================== 在这里统一管理固定的各组件版本 ====================
 env:
-  # ==================== 在这里更新为了你指定的最新版本 ====================
-  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 源码版本
-  TARGET_DOCKER_VERSION: "v29.4.1"        # Docker 版本
-  TARGET_COMPOSE_VERSION: "v5.1.4"        # Docker Compose 版本
-  # ====================================================================
+  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 官方源码版本
+  TARGET_DOCKER_VERSION: "v29.4.1"        # Docker 静态包版本
+  TARGET_COMPOSE_VERSION: "v5.1.4"        # Docker Compose 插件版本
+# ====================================================================
 
 jobs:
   build:
@@ -25,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # 1Panel 要求的标准 Go 编译环境
+          go-version: '1.22' # 1Panel 要求的标准编译 Go 环境
 
       - name: Check Version
         id: get-version
@@ -42,19 +42,21 @@ jobs:
       - name: Clone and Compile Official 1Panel Source
         run: |
           echo "=== 开始拉取 1Panel 官方指定版本源码 ==="
-          # 动态从官方源拉取你在顶部指定的 TARGET_1PANEL_VERSION
           git clone --branch ${{ steps.get-version.outputs.version }} https://github.com/1Panel-dev/1Panel.git official-src
           cd official-src
           
-          echo "=== 开始交叉编译 AMD64 (x86_64) 二进制 ==="
+          echo "=== 正在下载 Go 依赖包 ==="
+          go mod download
+          
+          echo "=== 开始现场交叉编译 AMD64 (x86_64) 二进制 ==="
           mkdir -p ../compiled_bins/amd64
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/amd64/1panel main.go
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/amd64/1panel cmd/panel/main.go
           
-          echo "=== 开始交叉编译 ARM64 (aarch64) 二进制 ==="
+          echo "=== 开始现场交叉编译 ARM64 (aarch64) 二进制 ==="
           mkdir -p ../compiled_bins/arm64
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/arm64/1panel main.go
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/arm64/1panel cmd/panel/main.go
           
-          echo "=== 编译完成 ==="
+          echo "=== 核心二进制编译完成 ==="
           ls -lh ../compiled_bins/*
 
       - name: Check Release
