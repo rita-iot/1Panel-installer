@@ -8,12 +8,10 @@ on:
 
 name: Checkout and Create Release Version
 
-# ==================== 在这里统一指定你想固定的版本 ====================
 env:
-  TARGET_1PANEL_VERSION: "v1.10.34-lts"   # 1Panel 版本 (通常带 v)
-  TARGET_DOCKER_VERSION: "v27.0.1"        # Docker 版本 (通常带 v，脚本会自动处理掉 v)
-  TARGET_COMPOSE_VERSION: "v5.1.4"       # Docker Compose 版本 (通常带 v)
-# ====================================================================
+  TARGET_1PANEL_VERSION: "v1.10.18-lts"   # 1Panel 源码版本
+  TARGET_DOCKER_VERSION: "v29.4.1"        # Docker 版本
+  TARGET_COMPOSE_VERSION: "v5.1.4"        # Docker Compose 版本
 
 jobs:
   build:
@@ -22,27 +20,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # 1Panel 要求的标准 Go 编译环境
+
       - name: Check Version
         id: get-version
         run: |
-          # 直接读取顶部配置的固定版本
           version="${{ env.TARGET_1PANEL_VERSION }}"
           docker_version="${{ env.TARGET_DOCKER_VERSION }}"
           compose_version="${{ env.TARGET_COMPOSE_VERSION }}"
           
-          if [ -z "${version}" ] || [ "${version}" == "null" ]; then
-            echo "Failed to get version"
-            exit 1
-          fi
-          
-          # 输出给后续步骤使用
           echo "version=${version}" >> $GITHUB_OUTPUT
           echo "app_version=${version}" >> $GITHUB_OUTPUT
-          # 这里保留了你原本代码中去掉 Docker 版本号里 "v" 的逻辑 (例如 v27.0.1 变成 27.0.1)
           echo "docker_version=${docker_version/v/}" >> $GITHUB_OUTPUT
           echo "compose_version=${compose_version}" >> $GITHUB_OUTPUT
+
+      - name: Clone and Compile Official 1Panel Source
+        run: |
+          echo "=== 开始拉取 1Panel 官方指定版本源码 ==="
+          git clone --branch ${{ steps.get-version.outputs.version }} https://github.com/v2est/1Panel.git official-src
+          cd official-src
           
-          echo "Target app_version: $version, docker_version: ${docker_version/v/}, compose_version: $compose_version"
+          echo "=== 开始交叉编译 AMD64 (x86_64) 二进制 ==="
+          mkdir -p ../compiled_bins/amd64
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/amd64/1panel main.go
+          
+          echo "=== 开始交叉编译 ARM64 (aarch64) 二进制 ==="
+          mkdir -p ../compiled_bins/arm64
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w" -o ../compiled_bins/arm64/1panel main.go
+          
+          echo "=== 编译完成 ==="
+          ls -lh ../compiled_bins/*
 
       - name: Check Release
         id: check-release
@@ -77,7 +87,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Make Offine
+      - name: Make Offline
         if: steps.check-build.outputs.build == 1
         run: |
           chmod +x prepare.sh
